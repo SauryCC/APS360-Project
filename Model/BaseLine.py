@@ -24,25 +24,34 @@ from torch.utils.data import DataLoader
 # Reference: https://stackoverflow.com/questions/56696147/pytorch-how-to-create-a-custom-dataset-with-reference-table
 
 class Dataloader(Dataset):
-    def __init__(self, csv_path, transform = None, test = False):
+    def __init__(self, csv_path, transform = None, test = False, one_hot = True):
         """
         Args:
             csv_path (string): path to csv file
             transform: pytorch transforms for transform
             test: whether to generate train/test loader
+            one_hot: whether the label is one-hot list or string of label
 
         """
         
+        # One hot list as label?
+        self.one_hot = one_hot
+
         # Read the csv file
         pf = pd.read_csv(csv_path)
+
+        # Filter the data:
+
+        # Only use 7 digits plates as datasets
+        sevenLengthPf = pf[pf.iloc[:, 2].str.len() == 7]
 
         # Load train/test data
         self.test = test
 
         if self.test == True:
-            self.data_info = pf[pf.iloc[:, 3] == 0]
+            self.data_info = sevenLengthPf[sevenLengthPf.iloc[:, 3] == 0]
         else:
-            self.data_info = pf[pf.iloc[:, 3] == 1]
+            self.data_info = sevenLengthPf[sevenLengthPf.iloc[:, 3] == 1]
 
         # First column contains the image paths
         self.paths = np.asarray(self.data_info.iloc[:, 1])
@@ -78,7 +87,26 @@ class Dataloader(Dataset):
         imgTensor = self.to_tensor(img)
         
         # Get license plate number
-        label = self.labels[index]
+        if(self.one_hot == False):
+            label = self.labels[index]
+        else:
+            # Use one_hot
+            # creating initial dataframe
+            alphaNumerical_Types = ('0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z')
+            listOfPlate = []
+            for alphaNumerical in self.labels[index]:
+                
+                place = alphaNumerical_Types.index(alphaNumerical)
+                if place >=0 and place <= 35:
+                    # oneHotList = [0] * 36
+                    # oneHotList[place] = 1
+                    listOfPlate.append(place)
+                    
+            # import pdb; pdb.set_trace()
+            ident = torch.eye(36)
+            label = ident[torch.tensor(listOfPlate)]
+
+            # label = listOfPlate
 
         return (imgTensor, label)
 
@@ -96,7 +124,7 @@ if __name__ == '__main__':
     
     # train_data = datasets.ImageFolder(train_dir, transform=data_transform)
     
-    train_data = Dataloader(filename, transform=data_transform, test = False)
+    train_data = Dataloader(filename, transform=data_transform, test = False, one_hot = True)
 
     print('Num training images: ', len(train_data))
     batch_size = 128
@@ -116,6 +144,7 @@ if __name__ == '__main__':
     while(1 == 1):
         if (count==10): break
         print(labels[count])
+
         cv2.namedWindow('image', cv2.WINDOW_NORMAL)
         cv2.imshow('image', np.transpose(images[count], (1, 2, 0)))
         cv2.waitKey(0)
