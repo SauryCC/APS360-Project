@@ -5,7 +5,6 @@ import random
 import torch.utils.data
 import time
 import os
-import io
 import torchvision
 from torchvision import datasets, models, transforms
 import matplotlib.pyplot as plt
@@ -13,13 +12,30 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.data import Dataset
 import matplotlib.pyplot as plt
 import pandas as pd
 import cv2
 from PIL import Image
 from torchvision.transforms import ToTensor, ToPILImage, Normalize, Compose
 from torch.utils.data import DataLoader
+import numpy as np
+import random
+import scipy.io
+import io
+from torch.utils.data import Dataset
+import torch
+from sklearn import svm
+from sklearn.ensemble import RandomForestClassifier
+
+# evaluate random forest algorithm for classification
+from numpy import mean
+from numpy import std
+from sklearn.datasets import make_classification
+from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import RepeatedStratifiedKFold
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score
+from sklearn.ensemble import RandomForestRegressor
 
 # Reference: https://stackoverflow.com/questions/56696147/pytorch-how-to-create-a-custom-dataset-with-reference-table
 
@@ -31,7 +47,6 @@ class Dataloader(Dataset):
             transform: pytorch transforms for transform
             test: whether to generate train/test loader
             one_hot: whether the label is one-hot list or string of label
-
         """
         
         # One hot list as label?
@@ -156,12 +171,10 @@ class MyNet(nn.Module):
         return x
 '''
 # Code reference: Lab 2, Tut 3b
-
 def evaluate(model, loader):
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.01, momentum=0.9)
     """ Evaluate the network on the validation set.
-
      Args:
          model: PyTorch neural network object
          loader: PyTorch data loader for the validation set
@@ -176,21 +189,16 @@ def evaluate(model, loader):
     correct = 0
     total = 0 
     count = 0
-
     for imgs, labels in loader:
         count = count +1
         if use_cuda and torch.cuda.is_available():
           imgs = imgs.cuda()
           labels = labels.cuda()
         print(labels)
-
         # labels = normalize_label(labels)  # Convert labels to 
-
         outputs = model(imgs)
-
         #select index with maximum prediction score
         pred = outputs.max(1, keepdim=True)[1]
-
         loss = criterion(outputs, labels.float())
         corr = (outputs > 0.0).squeeze().long() != labels
         total_err += int(corr.sum())
@@ -199,7 +207,6 @@ def evaluate(model, loader):
     err = float(total_err) / total_epoch
     loss = float(total_loss) / (count)
     return err, loss
-
 def get_accuracy(model, data_loader):
     correct = 0
     total = 0
@@ -219,17 +226,11 @@ def get_accuracy(model, data_loader):
         correct += pred.eq(labels.view_as(pred)).sum().item()
         total += imgs.shape[0]
     return correct / total
-
-
 def train(model, train_loader, val_loader, batch_size=20, learning_rate=0.01, num_epochs=1):
-
     
-
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
-
     iters, losses, train_acc, val_acc = [], [], [], []
-
     # training
     n = 0 # the number of iterations
     start_time=time.time()
@@ -251,16 +252,12 @@ def train(model, train_loader, val_loader, batch_size=20, learning_rate=0.01, nu
             loss.backward()               # backward pass (compute parameter updates)
             optimizer.step()              # make the updates for each parameter
             optimizer.zero_grad()         # a clean up step for PyTorch
-
-
-
             ##### Mini_batch Accuracy ##### We don't compute accuracy on the whole trainig set in every iteration!
             pred = out.max(1, keepdim=True)[1]
             mini_batch_correct = pred.eq(labels.view_as(pred)).sum().item()
             Mini_batch_total = imgs.shape[0]
             train_acc.append((mini_batch_correct / Mini_batch_total))
            ###########################
-
           # save the current training information
             iters.append(n)
             losses.append(float(loss)/batch_size)             # compute *average* loss
@@ -268,11 +265,7 @@ def train(model, train_loader, val_loader, batch_size=20, learning_rate=0.01, nu
             n += 1
             mini_b += 1
             print("Iteration: ",n,'Progress: % 6.2f ' % ((epoch * len(train_loader) + mini_b) / (num_epochs * len(train_loader))*100),'%', "Time Elapsed: % 6.2f s " % (time.time()-start_time))
-
-
         print ("Epoch %d Finished. " % epoch ,"Time per Epoch: % 6.2f s "% ((time.time()-start_time) / (epoch +1)))
-
-
     end_time= time.time()
     # plotting
     plt.title("Training Curve")
@@ -280,7 +273,6 @@ def train(model, train_loader, val_loader, batch_size=20, learning_rate=0.01, nu
     plt.xlabel("Iterations")
     plt.ylabel("Loss")
     plt.show()
-
     plt.title("Training Curve")
     plt.plot(iters, train_acc, label="Training")
     plt.plot(iters, val_acc, label="Validation")    
@@ -288,7 +280,6 @@ def train(model, train_loader, val_loader, batch_size=20, learning_rate=0.01, nu
     plt.ylabel("Validation Accuracy")
     plt.legend(loc='best')
     plt.show()
-
     train_acc.append(get_accuracy(model, train=True))
     print("Final Training Accuracy: {}".format(train_acc[-1]))
     print("Final Validation Accuracy: {}".format(val_acc[-1]))
@@ -311,7 +302,7 @@ if __name__ == '__main__':
     train_data = Dataloader(filename, transform=data_transform, datasetType = 2, one_hot = True)
 
     print('Num training images: ', len(train_data))
-    batch_size = 128
+    batch_size = 100
     num_workers = 0
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, 
                                               num_workers=num_workers, shuffle=True)
@@ -322,21 +313,67 @@ if __name__ == '__main__':
     
     images, labels = dataiter.next()
     images = images.numpy() # convert images to numpy for display
+    clf = RandomForestRegressor(n_estimators = 10)
+    print(labels)
+    print(labels.shape)
+    print(images.shape)
+    new_img=images[:,:,:,0:20]
+    print(new_img.shape)
+    batch,color, nx, ny = images.shape
+    images2=images.reshape((batch, color*nx*ny))
+    batch, lx, ly = labels.shape
+    labels2=labels.reshape((batch, lx*ly))
+    print(labels2)
 
+    clf.fit(images2,labels2)
+    pred=clf.predict(images2)
+    print(pred)
+    sep_pre=pred.reshape((batch, lx,ly))
+    my_array = np.zeros([batch, lx])
+    my_array2 = np.zeros([batch, lx])
+    for i in range(batch) :
+        for k in range(lx):
+            my_array[i][k]=np.argmax(sep_pre[i][k])
+            my_array2[i][k]=np.argmax(labels[i][k])
+    print (my_array)
+    print (my_array2)
+   # print(np.argmax(pred.reshape((batch, lx,ly))))
+    errors=abs(my_array2 - my_array)
+    print('Mean Absolute Error:', round(np.mean(errors), 2), 'degrees.')
+    #print(accuracy_score(my_array2,my_array))
+    
+    images, labels = dataiter.next()
+    batch,color, nx, ny = images.shape
+    images2=images.reshape((batch, color*nx*ny))
+    batch, lx, ly = labels.shape
+    labels2=labels.reshape((batch, lx*ly))
+    print(labels2)
+
+    pred=clf.predict(images2)
+    print(pred)
+    sep_pre=pred.reshape((batch, lx,ly))
+    my_array = np.zeros([batch, lx])
+    my_array2 = np.zeros([batch, lx])
+    for i in range(batch) :
+        for k in range(lx):
+            my_array[i][k]=np.argmax(sep_pre[i][k])
+            my_array2[i][k]=np.argmax(labels[i][k])
+    print (my_array)
+    print (my_array2)
+   # print(np.argmax(pred.reshape((batch, lx,ly))))
+    errors=abs(my_array2 - my_array)
+    print('Mean Absolute Error:', round(np.mean(errors), 2), 'degrees.')
     # plot the images in the batch, along with the corresponding labels
     count = 0
     while(1 == 1):
         if (count==10): break
-        print(labels[count])
+        #print(labels[count])
 
-        cv2.namedWindow('image', cv2.WINDOW_NORMAL)
-        cv2.imshow('image', np.transpose(images[count], (1, 2, 0)))
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        #cv2.namedWindow('image', cv2.WINDOW_NORMAL)
+        #cv2.imshow('image', np.transpose(images[count], (1, 2, 0)))
+        #cv2.waitKey(0)
+        #cv2.destroyAllWindows()
         count+=1
 
 
     # Train
-
-    
-
