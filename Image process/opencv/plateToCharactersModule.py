@@ -102,7 +102,8 @@ def getIndividualPic(imgSrc, points, myColors):
             mask = cv2.inRange(imgHSV, lower, upper)
             mask1 = cv2.bitwise_not(mask)
             imggCropped = mask1[y:y + h, x:x + w]
-            picList.append(imggCropped)
+            # invert color
+            picList.append(cv2.bitwise_not(imggCropped))
     print(len(picList))
     return picList
 
