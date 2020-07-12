@@ -45,7 +45,7 @@ class Dataloader_scv(Dataset):
         Args:
             csv_path (string): path to csv file
             transform: pytorch transforms for transform
-            test: whether to generate train/test loader
+            datasetType: Type of data: 0 is training, 1 is validation, 2 is testing
             one_hot: whether the label is one-hot list or string of label
         """
         

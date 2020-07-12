@@ -64,12 +64,18 @@ if __name__ == '__main__':
     
     # train_data = datasets.ImageFolder(train_dir, transform=data_transform)
     
-    train_data = Dataloader_scv(filename, transform=data_transform, datasetType = 2, one_hot = True)
+    train_data = Dataloader_scv(filename, transform=data_transform, datasetType = 0, one_hot = True)
+    val_data = Dataloader_scv(filename, transform=data_transform, datasetType = 1, one_hot = True)
+    test_data = Dataloader_scv(filename, transform=data_transform, datasetType = 2, one_hot = True)
 
     print('Num training images: ', len(train_data))
     batch_size = 1000
     num_workers = 0
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, 
+                                              num_workers=num_workers, shuffle=True)
+    val_loader = torch.utils.data.DataLoader(val_data, batch_size=batch_size, 
+                                              num_workers=num_workers, shuffle=True)
+    test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, 
                                               num_workers=num_workers, shuffle=True)
     # obtain one batch of training images
     dataiter = iter(train_loader)
@@ -108,6 +114,9 @@ if __name__ == '__main__':
     print('Acc:', baseline_acc(my_array,my_array2))
     #print(accuracy_score(my_array2,my_array))
     
+
+    dataiter = iter(test_loader)
+
     images, labels = dataiter.next()
     images=images[0:200][:][:]
     labels=labels[0:200][:][:]
