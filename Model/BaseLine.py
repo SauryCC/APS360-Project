@@ -40,7 +40,19 @@ from sklearn.ensemble import RandomForestRegressor
 
 # Reference: https://stackoverflow.com/questions/56696147/pytorch-how-to-create-a-custom-dataset-with-reference-table
 
-
+def baseline_acc(pred,labels):
+    
+    error=0
+    length=len(labels)*len(labels[0])
+    for i in range(len(labels)) :
+        for k in range(len(labels[0])):
+            if(pred[i][k]!=labels[i][k]):
+                error=error+1
+    
+    
+        
+    return 1-error/length
+    
 if __name__ == '__main__':
     # load csv
     header = ['track_id', 'image_path', 'lp', 'train']
@@ -55,7 +67,7 @@ if __name__ == '__main__':
     train_data = Dataloader(filename, transform=data_transform, datasetType = 2, one_hot = True)
 
     print('Num training images: ', len(train_data))
-    batch_size = 100
+    batch_size = 1000
     num_workers = 0
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, 
                                               num_workers=num_workers, shuffle=True)
@@ -88,14 +100,17 @@ if __name__ == '__main__':
         for k in range(lx):
             my_array[i][k]=np.argmax(sep_pre[i][k])
             my_array2[i][k]=np.argmax(labels[i][k])
-    print (my_array)
-    print (my_array2)
+   # print (my_array)
+    #print (my_array2)
+    print (len(my_array2[0]))
    # print(np.argmax(pred.reshape((batch, lx,ly))))
-    errors=abs(my_array2 - my_array)
-    print('Mean Absolute Error:', round(np.mean(errors), 2), 'degrees.')
+    #errors=abs(my_array2 - my_array)
+    print('Acc:', baseline_acc(my_array,my_array2))
     #print(accuracy_score(my_array2,my_array))
     
     images, labels = dataiter.next()
+    images=images[0:200][:][:]
+    labels=labels[0:200][:][:]
     batch,color, nx, ny = images.shape
     images2=images.reshape((batch, color*nx*ny))
     batch, lx, ly = labels.shape
@@ -111,11 +126,13 @@ if __name__ == '__main__':
         for k in range(lx):
             my_array[i][k]=np.argmax(sep_pre[i][k])
             my_array2[i][k]=np.argmax(labels[i][k])
-    print (my_array)
-    print (my_array2)
+   # print (my_array)
+    #print (my_array2)
    # print(np.argmax(pred.reshape((batch, lx,ly))))
-    errors=abs(my_array2 - my_array)
-    print('Mean Absolute Error:', round(np.mean(errors), 2), 'degrees.')
+    #errors=abs(my_array2 - my_array)
+    #print('Mean Absolute Error:', round(np.mean(errors), 2), 'degrees.')
+    print("val")
+    print('Acc:', baseline_acc(my_array,my_array2))
     # plot the images in the batch, along with the corresponding labels
     count = 0
     while(1 == 1):
