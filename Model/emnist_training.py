@@ -21,14 +21,32 @@ from torch.utils.data.sampler import SubsetRandomSampler
 class Emnist_net(nn.Module):
     def __init__(self):
         super(Emnist_net, self).__init__()
+        self.name = "ANN"
         self.layer1 = nn.Linear(28 * 28, 450)
         self.layer2 = nn.Linear(450, 47)
+
     def forward(self, img):
         flattened = img.view(-1, 28 * 28)
         activation1 = self.layer1(flattened)
         activation1 = F.relu(activation1)
         activation2 = self.layer2(activation1)
         return activation2
+
+e_net = Emnist_net()
+
+# define a 2-layer artificial neural network
+class Emnist_net(nn.Module):
+    def __init__(self):
+        super(Emnist_net, self).__init__()
+        self.name = "CNN"
+        self.conv1 = nn.Conv2d(1, 5, 5) #input channel 1, output channel 5 24*24*5
+        self.pool = nn.MaxPool2d(2, 2)
+        self.fc1 = nn.Linear(12*12*5, 47)
+    def forward(self, x):
+        x = self.pool(F.relu(self.conv1(x)))
+        x = x.view(-1, 12*12*5)
+        x = self.fc1(x)
+        return x
 
 e_net = Emnist_net()
 
@@ -52,10 +70,11 @@ def get_data_loader(batch_size, split):
   val_sampler = SubsetRandomSampler(val_index)
   val_loader = torch.utils.data.DataLoader(emnist_data, batch_size=batch_size,
                                             num_workers=0, sampler=val_sampler)
-  testset = datasets.EMNIST('data', train= False, split = "balanced", download = True)
+  testset = datasets.EMNIST('data', train= False, split = "balanced", download = True,transform=transforms.ToTensor())
   # Get the list of indices to sample from
+  #test_sampler = SubsetRandomSampler(np.arange(len(emnist_data)))
   test_loader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
-                                            num_workers=0)
+                                            num_workers=0)#, sampler = test_sampler
   return train_loader, val_loader, test_loader
 
 tr,v, te = get_data_loader(1, 0.7)
@@ -100,6 +119,11 @@ def train(model, lr, batch_size, epochs, split = 0.8):
     train_acc.append(get_accuracy(model, train_loader))
     val_acc.append(get_accuracy(model, val_loader))
     print("epoch:",epo, train_acc[-1], val_acc[-1])
+  model_path = "model_{0}_bs{1}_lr{2}_epoch{3}".format(e_net.name,
+                                                   batch_size,
+                                                   lr,
+                                                   epochs)
+  torch.save(e_net.state_dict(), model_path)
   plt.title("Training Curve learning rate:{}, epo:{}, batch_size:{}".format(lr, epo, batch_size))
   plt.plot(losses, label="Train")
   plt.xlabel("Epoch")
@@ -118,3 +142,29 @@ use_cuda = True
 print(torch.cuda.is_available())
 train(e_net,lr = 0.0001, batch_size = 32, epochs = 30)
 
+!unzip '/content/drive/My Drive/Colab Notebooks/APS360 LAB/project/imgs.zip' -d '/root/datasets'
+
+data_dir = "/root/datasets"
+data_transform = transforms.Compose([transforms.Resize((28,28)), transforms.Grayscale(num_output_channels=1),
+                                      transforms.ToTensor()])
+test_set = datasets.ImageFolder(data_dir, transform=data_transform)
+test_loader = torch.utils.data.DataLoader(test_set, batch_size=1,
+                                               num_workers=0, shuffle=True)
+print(len(test_loader))
+for img, label in test_loader:
+#  plt.imshow(img[0][0])
+  print(label)
+  out = e_net(img.cuda())
+  print(torch.max(out,dim =1))
+
+get_accuracy(e_net, test_loader)
+
+import shutil
+shutil.rmtree(data_dir + '/imgs')
+
+batch_size = 1
+split = 0.7
+train_loader, val_loader, test_loader = get_data_loader(batch_size, split)
+#get_accuracy(e_net, test_loader)
+
+get_accuracy(e_net, test_loader)
