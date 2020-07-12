@@ -16,9 +16,12 @@ import matplotlib.pyplot as plt # for plotting
 import torch.optim as optim
 import numpy as np
 from torch.utils.data.sampler import SubsetRandomSampler
+from plate_data_loader import *
+from plateToCharactersModule import *
+from torch.utils.data import TensorDataset, DataLoader
 
 # define a 2-layer artificial neural network
-class Emnist_net(nn.Module):
+class Emnist_net2(nn.Module):
     def __init__(self):
         super(Emnist_net, self).__init__()
         self.name = "ANN"
@@ -32,7 +35,7 @@ class Emnist_net(nn.Module):
         activation2 = self.layer2(activation1)
         return activation2
 
-e_net = Emnist_net()
+
 
 # define a 2-layer artificial neural network
 class Emnist_net(nn.Module):
@@ -48,7 +51,7 @@ class Emnist_net(nn.Module):
         x = self.fc1(x)
         return x
 
-e_net = Emnist_net()
+
 
 def get_data_loader(batch_size, split):
 
@@ -138,33 +141,186 @@ def train(model, lr, batch_size, epochs, split = 0.8):
   plt.legend(loc='best')
   plt.show()
 
-use_cuda = True
-print(torch.cuda.is_available())
-train(e_net,lr = 0.0001, batch_size = 32, epochs = 30)
 
-!unzip '/content/drive/My Drive/Colab Notebooks/APS360 LAB/project/imgs.zip' -d '/root/datasets'
+class Dataloader2(Dataset):
+    def __init__(self, csv_path, transform = None, datasetType = 0, one_hot = True):
+        """
+        Args:
+            csv_path (string): path to csv file
+            transform: pytorch transforms for transform
+            test: whether to generate train/test loader
+            one_hot: whether the label is one-hot list or string of label
+        """
+        
+        # One hot list as label?
+        self.one_hot = one_hot
 
-data_dir = "/root/datasets"
-data_transform = transforms.Compose([transforms.Resize((28,28)), transforms.Grayscale(num_output_channels=1),
-                                      transforms.ToTensor()])
-test_set = datasets.ImageFolder(data_dir, transform=data_transform)
-test_loader = torch.utils.data.DataLoader(test_set, batch_size=1,
-                                               num_workers=0, shuffle=True)
-print(len(test_loader))
-for img, label in test_loader:
-#  plt.imshow(img[0][0])
-  print(label)
-  out = e_net(img.cuda())
-  print(torch.max(out,dim =1))
+        # Read the csv file
+        pf = pd.read_csv(csv_path)
 
-get_accuracy(e_net, test_loader)
+        # Filter the data:
 
-import shutil
-shutil.rmtree(data_dir + '/imgs')
+        # Only use 7 digits plates as datasets
+        sevenLengthPf = pf[pf.iloc[:, 2].str.len() == 7]
 
-batch_size = 1
-split = 0.7
-train_loader, val_loader, test_loader = get_data_loader(batch_size, split)
-#get_accuracy(e_net, test_loader)
+        # Load train/test data
+        self.datasetType = datasetType
+        
+        if self.datasetType == 0: # Train
+            tmp = sevenLengthPf[sevenLengthPf.iloc[:, 3] == 1]
+            self.data_info = tmp.iloc[:int(3*len(tmp)/4), :]
 
-get_accuracy(e_net, test_loader)
+        elif self.datasetType == 1: # Val
+            tmp = sevenLengthPf[sevenLengthPf.iloc[:, 3] == 1]
+            self.data_info = tmp.iloc[int(3*len(tmp)/4):, :]
+        
+        elif self.datasetType == 2: # Test
+            self.data_info = sevenLengthPf[sevenLengthPf.iloc[:, 3] == 0]
+
+        # First column contains the image paths
+        self.paths = np.asarray(self.data_info.iloc[:, 1])
+
+        # Second column is the labels
+        self.labels = np.asarray(self.data_info.iloc[:, 2])
+
+        # Third column is for an train Boolean
+        self.trainBools = np.asarray(self.data_info.iloc[:, 3])
+
+        # Calculate len
+        self.data_len = len(self.data_info.index)
+
+        # Transform function
+        self.transform = transform
+
+        # Transform to tensor
+        self.to_tensor = transforms.ToTensor()
+    
+        
+    def __getitem__(self, index):
+
+        # Get image name from the pandas df
+        imageName = self.paths[index]
+        dirname = os.path.dirname(__file__)
+        image_path = os.path.join(dirname, '..//Picture//2017-IWT4S-CarsReId_LP-dataset', imageName)
+
+        # Open image
+        img = Image.open(image_path)
+        
+        # Transform image to tensor
+        if self.transform !=None:
+            img = self.transform(img)
+        imgTensor = self.to_tensor(img)
+        
+        # Get license plate number
+        if(self.one_hot == False):
+            label = self.labels[index]
+        else:
+            # Use one_hot
+            # creating initial dataframe
+            alphaNumerical_Types = ('0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z')
+            listOfPlate = []
+            for alphaNumerical in self.labels[index]:
+                
+                place = alphaNumerical_Types.index(alphaNumerical)
+                if place >=0 and place <= 35:
+                    # oneHotList = [0] * 36
+                    # oneHotList[place] = 1
+                    listOfPlate.append(place)
+                    
+            # import pdb; pdb.set_trace()
+            ident = torch.eye(36)
+            label = ident[torch.tensor(listOfPlate)]
+
+            # label = listOfPlate
+
+        return (imgTensor, label)
+
+    def __len__(self):
+        return self.data_len
+    
+tmp_x=[]
+tmp_y=[]
+
+def check(Dataloader2,index):
+    count=0
+               # Get image name from the pandas df
+    imageName = Dataloader2.paths[index]
+    dirname = os.path.dirname(__file__)
+    image_path = os.path.join(dirname, '..//Picture//2017-IWT4S-CarsReId_LP-dataset', imageName)
+    alphaNumerical_Types = ('0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z')
+        # Open image
+    img = cv2.imread(image_path)
+    skip=False
+    try:
+        outputs = slicePic(img)
+    except:
+           # print("An exception occurred")
+        skip=True
+    if (skip==False):
+    # print out images
+        if (len(outputs)==7):
+            count=0
+            for image in outputs:
+                #print(list( Dataloader2.labels[index])[count])
+                #print(alphaNumerical_Types.index(list( Dataloader2.labels[index])[count]))
+                global tmp_x
+                global tmp_y
+
+                tmp_x.append(image)
+                tmp_y.append(alphaNumerical_Types.index(list( Dataloader2.labels[index])[count]))
+                count=count+1
+            return 1
+    return 0
+use_cuda = False
+
+#print(torch.cuda.is_available())
+#train(e_net,lr = 0.0001, batch_size = 32, epochs = 30)
+
+#!unzip '/content/drive/My Drive/Colab Notebooks/APS360 LAB/project/imgs.zip' -d '/root/datasets'
+
+#data_dir = "/root/datasets"
+#data_transform = transforms.Compose([transforms.Resize((28,28)), transforms.Grayscale(num_output_channels=1),
+                                  #    transforms.ToTensor()])
+#test_set = datasets.ImageFolder(data_dir, transform=data_transform)
+#test_loader = torch.utils.data.DataLoader(test_set, batch_size=1,
+                                   #            num_workers=0, shuffle=True)
+
+
+#Below is extract images from opencv
+train_loader, val_loader, test_loader = get_data_loader(32, 0.8)
+    # load csv
+header = ['track_id', 'image_path', 'lp', 'train']
+    
+dirname = os.path.dirname(__file__)
+filename = os.path.join(dirname, '..//Picture//2017-IWT4S-CarsReId_LP-dataset//trainVal.csv')
+
+data_transform = transforms.Compose([transforms.Resize((50,140))])
+    
+    # train_data = datasets.ImageFolder(train_dir, transform=data_transform)
+    
+train_data = Dataloader2(filename, transform=data_transform, datasetType = 2, one_hot = False)
+print(train_data.labels[10])
+count=0
+#76032
+for i in range(len(train_data)):
+    count=count+ check(train_data,i)
+    print(count)
+print(count)
+print(len(tmp_x))
+print((tmp_x[0].shape))
+print(len(tmp_y))
+
+
+tensor_img = torch.Tensor(tmp_x) 
+tensor_lab = torch.Tensor(tmp_y)
+
+my_dataset = TensorDataset(tensor_img,tensor_lab) 
+
+#Above is extract images from opencv keep it
+
+#datat loader
+my_dataloader = DataLoader(my_dataset) 
+
+
+print('Num training images: ', len(my_dataloader))
+

@@ -39,7 +39,7 @@ from sklearn.ensemble import RandomForestRegressor
 
 # Reference: https://stackoverflow.com/questions/56696147/pytorch-how-to-create-a-custom-dataset-with-reference-table
 
-class Dataloader(Dataset):
+class Dataloader_scv(Dataset):
     def __init__(self, csv_path, transform = None, datasetType = 0, one_hot = True):
         """
         Args:

@@ -17,7 +17,7 @@ import pandas as pd
 import cv2
 from PIL import Image
 from torchvision.transforms import ToTensor, ToPILImage, Normalize, Compose
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader 
 import numpy as np
 import random
 import scipy.io
@@ -64,7 +64,7 @@ if __name__ == '__main__':
     
     # train_data = datasets.ImageFolder(train_dir, transform=data_transform)
     
-    train_data = Dataloader(filename, transform=data_transform, datasetType = 2, one_hot = True)
+    train_data = Dataloader_scv(filename, transform=data_transform, datasetType = 2, one_hot = True)
 
     print('Num training images: ', len(train_data))
     batch_size = 1000
