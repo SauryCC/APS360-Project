@@ -42,16 +42,34 @@ class Emnist_net(nn.Module):
     def __init__(self):
         super(Emnist_net, self).__init__()
         self.name = "CNN"
-        self.conv1 = nn.Conv2d(1, 5, 5) #input channel 1, output channel 5 24*24*5
+        self.conv1 = nn.Conv2d(1, 5, 5) #input channel 1, output channel 5 240*240*5
         self.pool = nn.MaxPool2d(2, 2)
-        self.fc1 = nn.Linear(12*12*5, 47)
+        self.conv2 = nn.Conv2d
+        self.fc1 = nn.Linear(120*120*5, 47)
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
         x = x.view(-1, 12*12*5)
         x = self.fc1(x)
         return x
 
+class Emnist_net(nn.Module):
+    def __init__(self):
+        super(Emnist_net, self).__init__()
+        self.name = "CNN"
+        self.conv1 = nn.Conv2d(1, 5, 5) #input channel 1, output channel 5 276*276*5
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(5, 10, 5) # 134*134*10
+        self.fc1 = nn.Linear(67*67*10, 2500)
+        self.fc2 = nn.Linear(2500,36)
+    def forward(self, x):
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = x.view(-1, 67*67*10)
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
+        return x
 
+e_net = Emnist_net()
 
 def get_data_loader(batch_size, split):
 
@@ -99,20 +117,25 @@ def get_accuracy(model, data_loader):
         total += imgs.shape[0]
     return correct / total
 
-def train(model, lr, batch_size, epochs, split = 0.8):
-  train_loader, val_loader, test_loader = get_data_loader(batch_size, split)
+def train(model, lr, batch_size, epochs, split = 0.8, openCV = False):
+  if openCV :
+      train_loader, val_loader, test_loader = OpenCV_loader(train_img, train_lab, val_img, val_lab, test_img, test_lab)
+  else:
+      train_loader, val_loader, test_loader = get_data_loader(batch_size, split)
   criterion = nn.CrossEntropyLoss()
   optimizer = optim.Adam(model.parameters(), lr=lr)
   epoch = []
   train_acc, val_acc, losses = [],[],[]
   for epo in range(epochs):
     for imgs, labels in iter(train_loader):
+      #print(labels.shape)
       if use_cuda and torch.cuda.is_available():
         imgs = imgs.cuda()
         labels = labels.cuda()
         model.cuda()
 
       out = model(imgs)             # forward pass
+      #print(type(out),type(labels))
       loss = criterion(out, labels) # compute the total loss
       loss.backward()               # backward pass (compute parameter updates)
       optimizer.step()              # make the updates for each parameter
@@ -201,7 +224,7 @@ class Dataloader2(Dataset):
         # Get image name from the pandas df
         imageName = self.paths[index]
         dirname = os.path.dirname(__file__)
-        image_path = os.path.join(dirname, '..//Picture//2017-IWT4S-CarsReId_LP-dataset', imageName)
+        image_path = os.path.join(dirname, '..//..//..//2017-IWT4S-CarsReId_LP-dataset', imageName)
 
         # Open image
         img = Image.open(image_path)
@@ -245,8 +268,8 @@ def check(Dataloader2,index):
     count=0
                # Get image name from the pandas df
     imageName = Dataloader2.paths[index]
-    dirname = os.path.dirname(__file__)
-    image_path = os.path.join(dirname, '..//Picture//2017-IWT4S-CarsReId_LP-dataset', imageName)
+    dirname = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/" #os.path.dirname(__file__)
+    image_path = os.path.join(dirname, '..//..//..//2017-IWT4S-CarsReId_LP-dataset', imageName)
     alphaNumerical_Types = ('0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z')
         # Open image
     img = cv2.imread(image_path)
@@ -265,7 +288,6 @@ def check(Dataloader2,index):
                 #print(alphaNumerical_Types.index(list( Dataloader2.labels[index])[count]))
                 global tmp_x
                 global tmp_y
-
                 tmp_x.append(image)
                 tmp_y.append(alphaNumerical_Types.index(list( Dataloader2.labels[index])[count]))
                 count=count+1
@@ -288,39 +310,92 @@ use_cuda = False
 
 #Below is extract images from opencv
 train_loader, val_loader, test_loader = get_data_loader(32, 0.8)
-    # load csv
+# load csv
 header = ['track_id', 'image_path', 'lp', 'train']
     
-dirname = os.path.dirname(__file__)
-filename = os.path.join(dirname, '..//Picture//2017-IWT4S-CarsReId_LP-dataset//trainVal.csv')
+dirname = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/" #os.path.dirname(__file__)
+filename = os.path.join(dirname, '..//..//..//2017-IWT4S-CarsReId_LP-dataset//trainVal.csv')
 
 data_transform = transforms.Compose([transforms.Resize((50,140))])
     
-    # train_data = datasets.ImageFolder(train_dir, transform=data_transform)
+# train_data = datasets.ImageFolder(train_dir, transform=data_transform)
     
-train_data = Dataloader2(filename, transform=data_transform, datasetType = 2, one_hot = False)
+train_data = Dataloader2(filename, transform=data_transform, datasetType = 0, one_hot = False)
+val_data = Dataloader2(filename, transform=data_transform, datasetType = 1, one_hot = False)
+test_data = Dataloader2(filename, transform=data_transform, datasetType = 2, one_hot = False)
+print(type(train_data))
+print("caonima")
 print(train_data.labels[10])
 count=0
 #76032
-for i in range(len(train_data)):
+for i in range(int(0.2*len(train_data))):
     count=count+ check(train_data,i)
-    print(count)
+    # print(count)
+
 print(count)
 print(len(tmp_x))
 print((tmp_x[0].shape))
 print(len(tmp_y))
 
+np_img = np.array(tmp_x)
+print(np_img.shape)
+np_lab = np.array(tmp_y)
+np.random.seed(1000)  # Fixed numpy random seed for reproducible shuffling
+img_idx = np.arange(len(tmp_x))
+np.random.shuffle(img_idx)
 
-tensor_img = torch.Tensor(tmp_x) 
-tensor_lab = torch.Tensor(tmp_y)
+data_percent = 0.2
+data_split = int(len(img_idx) * data_percent)
 
-my_dataset = TensorDataset(tensor_img,tensor_lab) 
+train_split = int(len(img_idx) * 0.8*data_percent)  # split at 80%
+test_split = int(len(img_idx) * 0.9*data_percent)
+train_idx = img_idx[:train_split]
+val_idx = img_idx[train_split: test_split]
+test_idx = img_idx[test_split:data_split]
 
+train_img = np_img.take(train_idx,axis=0)
+train_lab = np_lab.take(train_idx,axis=0)
+val_img = np_img.take(val_idx,axis=0)
+val_lab = np_lab.take(val_idx,axis=0)
+test_img = np_img.take(test_idx,axis=0)
+test_lab = np_lab.take(test_idx,axis=0)
+
+# print(train_img.shape)
+def OpenCV_loader(tr_img, tr_lab, v_img, v_lab, ts_img, ts_lab, batch_size = 32):
+    tr_img = torch.unsqueeze(torch.Tensor(tr_img),1)
+    tr_lab = torch.LongTensor(tr_lab)
+    v_img = torch.unsqueeze(torch.Tensor(v_img),1)
+    v_lab = torch.LongTensor(v_lab)
+    ts_img = torch.unsqueeze(torch.Tensor(ts_img),1)
+    ts_lab = torch.LongTensor(ts_lab)
+    print(type(tr_lab[1]))
+    trainset = TensorDataset(tr_img, tr_lab)
+    validset = TensorDataset(v_img, v_lab)
+    testset = TensorDataset(ts_img, ts_lab)
+    train_loader = DataLoader(trainset, batch_size=batch_size, num_workers=0)
+    val_loader = DataLoader(validset, batch_size=batch_size, num_workers=0)
+    test_loader = DataLoader(testset, batch_size=batch_size, num_workers=0)
+    return train_loader, val_loader, test_loader
 #Above is extract images from opencv keep it
 
 #datat loader
-my_dataloader = DataLoader(my_dataset) 
+train_loader, val_loader, test_loader=OpenCV_loader(train_img, train_lab, val_img, val_lab, test_img, test_lab)
 
-
+train(e_net, lr= 0.0001, batch_size = 32, epochs = 10, split = 0.8, openCV=True)
 print('Num training images: ', len(my_dataloader))
+e_net = Emnist_net()
+model_path = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/model_CNN_bs32_lr0.0001_epoch30_280"
+state = torch.load(model_path)
+e_net.load_state_dict(state)
+print(get_accuracy(e_net, test_loader))
 
+i = 0
+for img, label in my_dataloader:
+    i+=1
+    out = e_net(img)
+    max_idx = torch.max(out, dim=1)[1]
+    print(max_idx, label)
+    if i == 1 :
+        break
+
+    #print(torch.sum(max_inx == label))
