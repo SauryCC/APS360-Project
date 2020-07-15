@@ -52,9 +52,9 @@ class Emnist_net(nn.Module):
         x = self.fc1(x)
         return x
 
-class Emnist_net(nn.Module):
+class OCV_net(nn.Module):
     def __init__(self):
-        super(Emnist_net, self).__init__()
+        super(OCV_net, self).__init__()
         self.name = "CNN"
         self.conv1 = nn.Conv2d(1, 5, 5) #input channel 1, output channel 5 276*276*5
         self.pool = nn.MaxPool2d(2, 2)
@@ -69,7 +69,7 @@ class Emnist_net(nn.Module):
         x = self.fc2(x)
         return x
 
-e_net = Emnist_net()
+o_net = OCV_net()
 
 def get_data_loader(batch_size, split):
 
@@ -119,7 +119,9 @@ def get_accuracy(model, data_loader):
 
 def train(model, lr, batch_size, epochs, split = 0.8, openCV = False):
   if openCV :
-      train_loader, val_loader, test_loader = OpenCV_loader(train_img, train_lab, val_img, val_lab, test_img, test_lab)
+      train_loader = OpenCV_loader(train_img, train_lab)
+      val_loader = OpenCV_loader(val_img, val_lab)
+      test_loader = OpenCV_loader(test_img, test_lab)
   else:
       train_loader, val_loader, test_loader = get_data_loader(batch_size, split)
   criterion = nn.CrossEntropyLoss()
@@ -149,21 +151,24 @@ def train(model, lr, batch_size, epochs, split = 0.8, openCV = False):
                                                    batch_size,
                                                    lr,
                                                    epochs)
-  torch.save(e_net.state_dict(), model_path)
-  plt.title("Training Curve learning rate:{}, epo:{}, batch_size:{}".format(lr, epo, batch_size))
-  plt.plot(losses, label="Train")
-  plt.xlabel("Epoch")
-  plt.ylabel("Loss")
-  plt.show()
+  dirname = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/"
+  model_path = os.path.join(dirname,model_path)
+  torch.save(model.state_dict(), model_path)
 
-  plt.title("Training Curve learning rate:{}, epo:{}, batch_size:{}".format(lr, epo, batch_size))
-  plt.plot(epoch, train_acc, label="Train")
-  plt.plot(epoch, val_acc, label="Validation")
-  plt.xlabel("Epoch")
-  plt.ylabel("Accuracy")
+  fig, axs = plt.subplots(2, 1, constrained_layout=True)
+  axs[0].plot(losses, label="Train")
+  axs[0].set_title("Loss Curve learning rate:{}, epo:{}, batch_size:{}".format(lr, epo, batch_size))
+  axs[0].set_xlabel("Epoch")
+  axs[0].set_ylabel("Loss")
+
+  axs[1].set_title("Accuracy Curve learning rate:{}, epo:{}, batch_size:{}".format(lr, epo, batch_size))
+  axs[1].plot(epoch, train_acc, label="Train")
+  axs[1].plot(epoch, val_acc, label="Validation")
+  axs[1].set_xlabel("Epoch")
+  axs[1].set_ylabel("Accuracy")
   plt.legend(loc='best')
   plt.show()
-
+  return losses, train_acc, val_acc
 
 class Dataloader2(Dataset):
     def __init__(self, csv_path, transform = None, datasetType = 0, one_hot = True):
@@ -223,7 +228,7 @@ class Dataloader2(Dataset):
 
         # Get image name from the pandas df
         imageName = self.paths[index]
-        dirname = os.path.dirname(__file__)
+        dirname = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/" #os.path.dirname(__file__)os.path.dirname(__file__)
         image_path = os.path.join(dirname, '..//..//..//2017-IWT4S-CarsReId_LP-dataset', imageName)
 
         # Open image
@@ -260,142 +265,115 @@ class Dataloader2(Dataset):
 
     def __len__(self):
         return self.data_len
-    
-tmp_x=[]
-tmp_y=[]
 
-def check(Dataloader2,index):
-    count=0
+
+def load_single_char(Dataloader2, data_ratio):
+    seven_digit_plate_count=0
+    data_list, label_list = [], []
                # Get image name from the pandas df
-    imageName = Dataloader2.paths[index]
-    dirname = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/" #os.path.dirname(__file__)
-    image_path = os.path.join(dirname, '..//..//..//2017-IWT4S-CarsReId_LP-dataset', imageName)
-    alphaNumerical_Types = ('0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z')
-        # Open image
-    img = cv2.imread(image_path)
-    skip=False
-    try:
-        outputs = slicePic(img)
-    except:
-           # print("An exception occurred")
-        skip=True
-    if (skip==False):
-    # print out images
-        if (len(outputs)==7):
-            count=0
-            for image in outputs:
-                #print(list( Dataloader2.labels[index])[count])
-                #print(alphaNumerical_Types.index(list( Dataloader2.labels[index])[count]))
-                global tmp_x
-                global tmp_y
-                tmp_x.append(image)
-                tmp_y.append(alphaNumerical_Types.index(list( Dataloader2.labels[index])[count]))
-                count=count+1
-            return 1
-    return 0
+    num_data = len(Dataloader2)
+    for index in range(int(num_data*data_ratio)):
+        if len(Dataloader2.labels[index]) == 7 :
+            seven_digit_plate_count += 1
+        imageName = Dataloader2.paths[index]
+        dirname = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/" #os.path.dirname(__file__)
+        image_path = os.path.join(dirname, '..//..//..//2017-IWT4S-CarsReId_LP-dataset', imageName)
+        alphaNumerical_Types = ('0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z')
+            # Open image
+        img = cv2.imread(image_path)
+        skip=False
+        try:
+            outputs = slicePic(img)
+        except:
+            skip=True
+        if (skip==False):
+        # print out images
+            if (len(outputs)==7):
+                count = 0
+                for image in outputs:
+                    data_list.append(image)
+                    label_list.append(alphaNumerical_Types.index(list( Dataloader2.labels[index])[count]))
+                    count=count+1
+    print("total number of 7 number plates loaded {}".format(len(data_list) / 7))
+    print("OpenCV success rate on all 7 cropping: {}".format(len(data_list) / 7 / seven_digit_plate_count))
+    return data_list, label_list
+
 use_cuda = False
-
-#print(torch.cuda.is_available())
-#train(e_net,lr = 0.0001, batch_size = 32, epochs = 30)
-
-#!unzip '/content/drive/My Drive/Colab Notebooks/APS360 LAB/project/imgs.zip' -d '/root/datasets'
-
-#data_dir = "/root/datasets"
-#data_transform = transforms.Compose([transforms.Resize((28,28)), transforms.Grayscale(num_output_channels=1),
-                                  #    transforms.ToTensor()])
-#test_set = datasets.ImageFolder(data_dir, transform=data_transform)
-#test_loader = torch.utils.data.DataLoader(test_set, batch_size=1,
-                                   #            num_workers=0, shuffle=True)
-
+print(torch.cuda.is_available())
 
 #Below is extract images from opencv
-train_loader, val_loader, test_loader = get_data_loader(32, 0.8)
+
 # load csv
 header = ['track_id', 'image_path', 'lp', 'train']
-    
 dirname = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/" #os.path.dirname(__file__)
 filename = os.path.join(dirname, '..//..//..//2017-IWT4S-CarsReId_LP-dataset//trainVal.csv')
 
 data_transform = transforms.Compose([transforms.Resize((50,140))])
     
-# train_data = datasets.ImageFolder(train_dir, transform=data_transform)
-    
 train_data = Dataloader2(filename, transform=data_transform, datasetType = 0, one_hot = False)
 val_data = Dataloader2(filename, transform=data_transform, datasetType = 1, one_hot = False)
 test_data = Dataloader2(filename, transform=data_transform, datasetType = 2, one_hot = False)
-print(type(train_data))
-print("caonima")
-print(train_data.labels[10])
-count=0
+print("whole plate train data : {}, valid data: {}, test data {}".format(len(train_data), len(val_data), len(test_data)))
+
 #76032
-for i in range(int(0.2*len(train_data))):
-    count=count+ check(train_data,i)
-    # print(count)
 
-print(count)
-print(len(tmp_x))
-print((tmp_x[0].shape))
-print(len(tmp_y))
+data_ratio = 0.2
+train_ratio=0.2
+val_ratio = 0.5
+test_ratio = 0.1
+tr_d, tr_l = load_single_char(train_data, train_ratio)
+v_d, v_l = load_single_char(val_data, val_ratio)
+ts_d, ts_l = load_single_char(test_data, test_ratio)
 
-np_img = np.array(tmp_x)
-print(np_img.shape)
-np_lab = np.array(tmp_y)
-np.random.seed(1000)  # Fixed numpy random seed for reproducible shuffling
-img_idx = np.arange(len(tmp_x))
-np.random.shuffle(img_idx)
+def list_suffle_to_np(data_list, label_list):
+    #print(label_list[:10])
+    np_img = np.array(data_list)
+    #print(np_img.shape)
+    np_lab = np.array(label_list)
+    np.random.seed(1000)  # Fixed numpy random seed for reproducible shuffling
+    img_idx = np.arange(len(data_list))
+    np.random.shuffle(img_idx)
+    np_img = np_img.take(img_idx,axis=0)
+    np_lab = np_lab.take(img_idx,axis=0)
+    #print(np_lab.shape)
+    #print(np_lab[:10])
+    return np_img, np_lab
 
-data_percent = 0.2
-data_split = int(len(img_idx) * data_percent)
-
-train_split = int(len(img_idx) * 0.8*data_percent)  # split at 80%
-test_split = int(len(img_idx) * 0.9*data_percent)
-train_idx = img_idx[:train_split]
-val_idx = img_idx[train_split: test_split]
-test_idx = img_idx[test_split:data_split]
-
-train_img = np_img.take(train_idx,axis=0)
-train_lab = np_lab.take(train_idx,axis=0)
-val_img = np_img.take(val_idx,axis=0)
-val_lab = np_lab.take(val_idx,axis=0)
-test_img = np_img.take(test_idx,axis=0)
-test_lab = np_lab.take(test_idx,axis=0)
+train_img, train_lab = list_suffle_to_np(tr_d, tr_l)
+val_img, val_lab = list_suffle_to_np(v_d, v_l)
+test_img, test_lab = list_suffle_to_np(ts_d, ts_l)
 
 # print(train_img.shape)
-def OpenCV_loader(tr_img, tr_lab, v_img, v_lab, ts_img, ts_lab, batch_size = 32):
-    tr_img = torch.unsqueeze(torch.Tensor(tr_img),1)
-    tr_lab = torch.LongTensor(tr_lab)
-    v_img = torch.unsqueeze(torch.Tensor(v_img),1)
-    v_lab = torch.LongTensor(v_lab)
-    ts_img = torch.unsqueeze(torch.Tensor(ts_img),1)
-    ts_lab = torch.LongTensor(ts_lab)
-    print(type(tr_lab[1]))
-    trainset = TensorDataset(tr_img, tr_lab)
-    validset = TensorDataset(v_img, v_lab)
-    testset = TensorDataset(ts_img, ts_lab)
-    train_loader = DataLoader(trainset, batch_size=batch_size, num_workers=0)
-    val_loader = DataLoader(validset, batch_size=batch_size, num_workers=0)
-    test_loader = DataLoader(testset, batch_size=batch_size, num_workers=0)
-    return train_loader, val_loader, test_loader
+def OpenCV_loader(img, lab, batch_size = 32):
+    img = torch.unsqueeze(torch.Tensor(img),1)
+    lab = torch.LongTensor(lab)
+    dataset = TensorDataset(img, lab)
+    data_loader = DataLoader(dataset, batch_size=batch_size, num_workers=0)
+    return data_loader
 #Above is extract images from opencv keep it
 
 #datat loader
-train_loader, val_loader, test_loader=OpenCV_loader(train_img, train_lab, val_img, val_lab, test_img, test_lab)
+train_loader = OpenCV_loader(train_img, train_lab, batch_size = 32)
+val_loader = OpenCV_loader(val_img, val_lab, batch_size = 32)
+test_loader = OpenCV_loader(test_img, test_lab, batch_size = 32)
+losses, train_acc, valid_acc = train(o_net, lr= 0.0001, batch_size = 32, epochs = 10, split = 0.8, openCV=True)
 
-train(e_net, lr= 0.0001, batch_size = 32, epochs = 10, split = 0.8, openCV=True)
-print('Num training images: ', len(my_dataloader))
+
 e_net = Emnist_net()
 model_path = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/model_CNN_bs32_lr0.0001_epoch30_280"
 state = torch.load(model_path)
 e_net.load_state_dict(state)
 print(get_accuracy(e_net, test_loader))
 
-i = 0
-for img, label in my_dataloader:
-    i+=1
-    out = e_net(img)
-    max_idx = torch.max(out, dim=1)[1]
-    print(max_idx, label)
-    if i == 1 :
-        break
+# i = 0
+# for img, label in train_loader:
+#     i+=1
+#     plt.figure()
+#     plt.imshow(img[0].squeeze(0))
+#     out = e_net(img)
+#     max_idx = torch.max(out, dim=1)[1]
+#     print("prediction : {}, label {}".format(max_idx, label))
+#     if i == 3:
+#         break
 
     #print(torch.sum(max_inx == label))
