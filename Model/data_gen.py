@@ -13,6 +13,7 @@ from PIL import ImageFont
 from PIL import Image
 from PIL import ImageDraw
 import matplotlib.pyplot as plt
+import shutil
 
 Numerical_Types = (
 '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N',
@@ -51,14 +52,14 @@ def load_font(font_name, out_height):
 
 loader = dict(load_font(font_name, 80))
 
-f1 = plt.figure(figsize=(36,6))
-i = 0
-for c, img in loader:
-    print(img.shape)
-    ax = f1.add_subplot(6, 36/6, i+1, xticks=[], yticks=[])
-    plt.imshow(img)
-    ax.set_title(c)
-    i+=1
+# f1 = plt.figure(figsize=(36,6))
+# i = 0
+# for c, img in loader:
+#     print(img.shape)
+#     ax = f1.add_subplot(6, 36/6, i+1, xticks=[], yticks=[])
+#     plt.imshow(img)
+#     ax.set_title(c)
+#     i+=1
 
 #def pick_color():
     #text_color =
@@ -68,32 +69,80 @@ def num_to_plate(str, loader, out_shape):
     left_h_pad = 30
     vertical_pad = 60
     #np.zeros()
+    rainbow = np.array([255,0,0, 255,127,0, 255,255,0, 255,255,255,0,255,0, 0,0,255, 46,43,95,139,0,255]).reshape((8,3))
+    rainbow = rainbow.astype(np.float32)/255
     text_mask=loader[str[0]]
+    shit_mask = np.stack(((loader[str[0]]!=0)*rainbow[0][0], (loader[str[0]]!=0)*rainbow[0][1],(loader[str[0]]!=0)*rainbow[0][2]))
+    print(text_mask.shape, shit_mask.shape)
     for i in range(1, len(str)):
         text_mask = np.concatenate((text_mask, loader[str[i]]),axis =1)
-    plt.imshow(text_mask)
+        tmp = np.stack(((loader[str[i]]!=0) * rainbow[i][0], (loader[str[i]]!=0) * rainbow[i][1],(loader[str[i]]!=0) * rainbow[i][2]))
+        shit_mask = np.concatenate((shit_mask,tmp), axis = 2)
+    # plt.imshow(text_mask)
+    shit_mask = np.transpose(shit_mask, [1,2,0])
+    #plt.imshow(shit_mask)
     text_mask = np.dstack((text_mask,text_mask,text_mask))
-    plt.imshow(text_mask)
-    print(text_mask[0][0][0])
+    #plt.imshow(text_mask)
     l_h_pad = np.zeros(( text_mask.shape[0],left_h_pad, 3))
     r_h_pad = np.zeros(( text_mask.shape[0],right_h_pad, 3))
     text_mask=np.concatenate((l_h_pad, text_mask,r_h_pad), axis =1)
+    shit_mask = np.concatenate((l_h_pad, shit_mask, r_h_pad), axis=1)
     v_pad = np.zeros((vertical_pad, text_mask.shape[1], 3))
     text_mask = np.concatenate((v_pad, text_mask, v_pad), axis = 0)
+    shit_mask = np.concatenate((v_pad, shit_mask, v_pad), axis=0)
     plate_bg = Image.open(FONT_PATH+"../plate/blank_ontario-plate.jpg")
     plate_bg=plate_bg.resize((text_mask.shape[1],text_mask.shape[0]), Image.ANTIALIAS)
     plate_bg = np.array(plate_bg)[:, :, :].astype(np.float32) / 255
-    print(text_mask[0][0][0])
-    _mask = (text_mask==0)
+    _mask = (text_mask==[0,0,0])
     plate = np.copy(text_mask)
     plate[_mask] = plate_bg[_mask]
-    plt.imshow(plate)
-    #plate = np.ones(out_shape)
-num_to_plate("ONT JOBS", loader, 1)
+    mask_bg = np.zeros(plate.shape)
+    _mask = (shit_mask == [0,0,0])
+    #print(_mask)
+    ma = np.copy(shit_mask)
+    ma[_mask] = mask_bg[_mask]
+    return plate, ma
+
+# plate , ma = num_to_plate(select_random_number(), loader, 1)
+# plt.imshow(plate)
+# plt.imshow(ma)
 
 
 # edit picture to plate backgound
-from PIL import Image
-im = Image.open(FONT_PATH+"../plate/ontario-plate.jpg")
-print(im.width)
-im.show()
+# from PIL import Image
+# im = Image.open(FONT_PATH+"../plate/ontario-plate.jpg")
+# print(im.width)
+# im.show()
+# im = Image.fromarray((plate*255).astype(np.uint8))
+# im.show()
+# im.save('test.png')
+# im = Image.fromarray((ma*255).astype(np.uint8))
+# im.show()
+# plt.imshow(ma)
+# im.save('mask.png')
+
+
+
+if __name__ == "__main__":
+    regen = False
+    root_dir = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/"
+    image_dir = "Image/"
+    original = "PNGImages/"
+    mask = "PNGMasks/"
+    if os.path.exists(root_dir+image_dir):
+        if regen:
+            shutil.rmtree(root_dir+image_dir)
+            os.makedirs(root_dir+image_dir)
+            os.makedirs(root_dir + image_dir+original)
+            os.makedirs(root_dir + image_dir+mask)
+    else:
+        os.makedirs(root_dir + image_dir)
+        os.makedirs(root_dir + image_dir + original)
+        os.makedirs(root_dir + image_dir + mask)
+    for i in range(500):
+        _rd = select_random_number()
+        plate, ma = num_to_plate(_rd, loader, 1)
+        im = Image.fromarray((plate * 255).astype(np.uint8))
+        im.save('IMAGE/PNGImages/{}.png'.format(_rd))
+        im = Image.fromarray((ma * 255).astype(np.uint8))
+        im.save('IMAGE/PNGMasks/{}_mask.png'.format(_rd))
