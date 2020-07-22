@@ -403,16 +403,23 @@ if __name__ == "__main__":
     # check our model predict vs dalao's
 
     if len(licenseGuess) == len(dalao_predict):
+        temp = ""
         for i in range(len(licenseGuess)):
             if not dalao_predict[i].isalnum():
                 if licenseGuess[i].isalnum():
-                    dalao_predict[i] = licenseGuess[i]
+                    temp += licenseGuess[i]
+                else:
+                    temp += dalao_predict[i]
+            else:
+                temp+=dalao_predict[i]
+        dalao_predict = temp
 
     if len(dalao_predict) < 7 and len(licenseGuess) == 7:
+        temp = list(licenseGuess)
         for i in range(len(dalao_predict)-1,-1,-1):
             if not licenseGuess[i].isalnum():
-                licenseGuess[i] = dalao_predict[i]
-        dalao_predict = licenseGuess
+                temp[i] = dalao_predict[i]
+        dalao_predict = temp.join()
     elif len(dalao_predict) < 7:
         dalao_predict = licenseGuess[:7-len(dalao_predict)] + dalao_predict
 
