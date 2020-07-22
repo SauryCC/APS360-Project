@@ -389,11 +389,12 @@ if __name__ == "__main__":
     dalao_predict = main(img)
     # slice numbers and characters out of the image
     outputs, licenseGuess = slicePic(img)
-
-    licenseGuess = licenseGuess.replace(" ", "")
-    licenseGuess = licenseGuess.upper()
-    dalao_predict = dalao_predict.replace(" ", "")
-    dalao_predict = dalao_predict.upper()
+    if len(licenseGuess) != 0:
+        licenseGuess = licenseGuess.replace(" ", "")
+        licenseGuess = licenseGuess.upper()
+    if len(dalao_predict) != 0:
+        dalao_predict = dalao_predict.replace(" ", "")
+        dalao_predict = dalao_predict.upper()
     # prevent head over reading
     if len(licenseGuess)>7:
         licenseGuess = licenseGuess[-7:]
