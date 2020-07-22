@@ -246,7 +246,34 @@ def test_on_none_generated_data(model, img_path):
     model.eval()
     loss_dict = model([image])
     print(loss_dict)
+    print(image.shape)
     show_img_with_boxes(np.transpose(image.cpu().numpy(), [1, 2, 0]), target=None, prediction=loss_dict[0])
+    print(loss_dict[0]['boxes'].shape)
+    crop_plate_number(image, loss_dict[0])
+
+def crop_plate_number(img, pred, target_dir=None):
+    mul = 1
+    if img.max() <= 1:
+        mul = 255
+    boxes = pred['boxes']
+    scores = pred['scores']
+    top_7_idx = torch.topk(scores, 7)[1]
+    img = img.numpy()
+    boxes = boxes.detach().numpy().astype(np.int32)
+    for t in range(top_7_idx.shape[0]):
+        i = top_7_idx[t]
+        print(type(boxes))
+        #boxes = boxes.long().numpy().astype(np.uint32)
+        if scores[i] > 0.5:
+            a,b,c,d = boxes[i, 0],boxes[i,2],boxes[i,1],boxes[i,3]
+            print(img.shape)
+            crop = img[:, c:d,a:b]
+            print(crop.shape)
+            _img = np.transpose((crop*mul).astype(np.uint8), [1,2,0])
+            print(_img)
+            im = Image.fromarray(_img)
+            im.save('Crop/{}.png'.format(i))
+
 
 if __name__ == "__main__":
     matplotlib.use('TkAgg')
@@ -271,5 +298,5 @@ if __name__ == "__main__":
     state = torch.load(model_path)
     model1.load_state_dict(state)
     # show_result(model1, data_loader_test, 1)
-    new_data = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/plate/bc_plate.jpg"
+    new_data = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/plate/FWU8Yl.jpg"
     test_on_none_generated_data(model1, new_data)
