@@ -122,15 +122,15 @@ def show_img_with_boxes(img, target = None, prediction =None):
                                          fill=False, edgecolor="yellow")
                 ax.add_patch(rect)
         plt.savefig("result.png")
-        plt.show()
+        #plt.show()
 
 if __name__ == "__main__":
-    root = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/Image"
+    root = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/Image_pers_blur"
     data = ImageMaskDataset(root, None)
     print(len(data))
     for img, label in data:
         img = np.asarray(img)
         # plt.imshow(img)
-        print(img.shape, label)
+        # print( label['boxes'])
         show_img_with_boxes(img, label)
         break

@@ -10,10 +10,12 @@ import os
 import random
 import numpy as np
 from PIL import ImageFont
-from PIL import Image
+from PIL import Image, ImageFilter
 from PIL import ImageDraw
 import matplotlib.pyplot as plt
 import shutil
+import transforms
+import PIL.ImageOps
 
 Numerical_Types = (
 '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N',
@@ -34,8 +36,6 @@ def select_random_number():
             _str+=alphaNumerical_Types[plate_num[i-(i>4)]]
     return _str
 
-print(select_random_number())
-
 def load_font(font_name, out_height):
     font_size = out_height*4 # approximately
     font_path = os.path.join(FONT_PATH, font_name)
@@ -52,17 +52,6 @@ def load_font(font_name, out_height):
 
 loader = dict(load_font(font_name, 80))
 
-# f1 = plt.figure(figsize=(36,6))
-# i = 0
-# for c, img in loader:
-#     print(img.shape)
-#     ax = f1.add_subplot(6, 36/6, i+1, xticks=[], yticks=[])
-#     plt.imshow(img)
-#     ax.set_title(c)
-#     i+=1
-
-#def pick_color():
-    #text_color =
 
 def num_to_plate(str, loader, out_shape):
     right_h_pad = 40
@@ -103,32 +92,90 @@ def num_to_plate(str, loader, out_shape):
     ma[_mask] = mask_bg[_mask]
     return plate, ma
 
-# plate , ma = num_to_plate(select_random_number(), loader, 1)
-# plt.imshow(plate)
-# plt.imshow(ma)
+import cv2
+from scipy.spatial.transform import Rotation as R
+# from skimage import transform as t
+# from skimage import io
+# import math
+# def random_rotation(photo):
+#     image = io.imread(photo)
+#     afine_tf = t.AffineTransform(rotation=math.pi/6, shear=0.2)
+#     # Apply transform to image data
+#     modified = t.warp(image, inverse_map=afine_tf)
+#     # Display the result
+#     io.imshow(modified)
+#     io.show()
+#
+#
+#
+# photo_path = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/Image/PNGImages"
+# photo = photo_path + "/0AE IIT0.png"
+# img = np.asarray(Image.open(photo))
+# random_rotation(photo)
+#
+# def photo_transform(photo):
+#     cv2.getRotationMatrix2D()
 
+# from torchvision.transforms import functional as F
+# shear = [5,5]
+# ret0 = (30, (0, 0), 0.5, shear)
+# _rd = select_random_number()
+# plate, ma = num_to_plate(_rd, loader, 1)
+# print(plate.shape, ma.shape)
+# im = Image.fromarray((plate * 255).astype(np.uint8))
+# im2 = Image.fromarray((ma * 255).astype(np.uint8))
+# img_tuple = (im,im2)
+# img1= F.affine(img_tuple[0], *ret0, resample=0, fillcolor=0)
+# img2 = F.affine(img_tuple[1], *ret0, resample=0, fillcolor=0)
+# img1.show()
+# img2.show()
+#
+# shear = [5,5,5,5]
+# transform = transforms.RandomAffine(30, scale=(0.3, 1.1), shear=shear)
+# print(transform)
+# _rd = select_random_number()
+# plate, ma = num_to_plate(_rd, loader, 1)
+# print(plate.shape, ma.shape)
+# im = Image.fromarray((plate * 255).astype(np.uint8))
+# im2 = Image.fromarray((ma * 255).astype(np.uint8))
+# img = transform((im,im2))
+# print(img[0])
+# img[1].show()
+# img[2].show()
+# #im.save('IMAGE/PNGImages/{}.png'.format(_rd))
 
-# edit picture to plate backgound
-# from PIL import Image
-# im = Image.open(FONT_PATH+"../plate/ontario-plate.jpg")
-# print(im.width)
-# im.show()
-# im = Image.fromarray((plate*255).astype(np.uint8))
-# im.show()
-# im.save('test.png')
-# im = Image.fromarray((ma*255).astype(np.uint8))
-# im.show()
-# plt.imshow(ma)
-# im.save('mask.png')
+# def add_background():
+#
+#
+#
 
+def perspect_blur_bright_contrast(img, mask,target_shape, blur, b_range, c_range):
+    size = img.size
+    t_shape = (target_shape[0], int(size[1] / (size[0] / target_shape[0]) * target_shape[1]))
+    resized_im = img.resize(t_shape, Image.ANTIALIAS)
+    resized_im2 = mask.resize(t_shape, 0)
+    # img = transform((im,im2))
+    im_blur = resized_im.filter(ImageFilter.GaussianBlur(radius=blur))
+    perspect = transforms.RandomPerspective(distortion_scale=0.5, p=1, interpolation=False, fill=0)
+    perspective_img = perspect([im_blur, resized_im2])
+    # perspective_img[0].show()
+    # perspective_img[1].show()
+    bright = random.uniform(b_range[0], b_range[1])
+    contrast = random.uniform(c_range[0], c_range[1])
+    bright_img = F.adjust_brightness(perspective_img[0], bright)
+    contrast_img = F.adjust_contrast(bright_img, contrast)
+    return contrast_img, perspective_img[1]
 
-
+import torchvision
+import torch
+from torchvision.transforms import functional as F
 if __name__ == "__main__":
     regen = False
     root_dir = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/"
-    image_dir = "Image/"
+    image_dir = "Image_pers_blur/"
     original = "PNGImages/"
     mask = "PNGMasks/"
+    target_shape = [150,1]
     if os.path.exists(root_dir+image_dir):
         if regen:
             shutil.rmtree(root_dir+image_dir)
@@ -140,9 +187,16 @@ if __name__ == "__main__":
         os.makedirs(root_dir + image_dir + original)
         os.makedirs(root_dir + image_dir + mask)
     for i in range(500):
+        #shear = [3, 3, 5, 5]
+        #transform = transforms.RandomAffine(30, scale=(0.3, 1.1), shear=shear)
         _rd = select_random_number()
         plate, ma = num_to_plate(_rd, loader, 1)
         im = Image.fromarray((plate * 255).astype(np.uint8))
-        im.save('IMAGE/PNGImages/{}.png'.format(_rd))
-        im = Image.fromarray((ma * 255).astype(np.uint8))
-        im.save('IMAGE/PNGMasks/{}_mask.png'.format(_rd))
+        im2 = Image.fromarray((ma * 255).astype(np.uint8))
+        img, mask = perspect_blur_bright_contrast(im, im2, target_shape, blur=1.2, b_range=[0.8,1.5], c_range=[0.8,1.5])
+        # img.show()
+        # mask.show()
+        #break
+        img.save(image_dir+'/PNGImages/{}.png'.format(_rd))
+        mask.save(image_dir+'/PNGMasks/{}_mask.png'.format(_rd))
+

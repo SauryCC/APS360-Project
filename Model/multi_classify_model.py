@@ -12,6 +12,8 @@ from engine import  evaluate
 import utils
 import matplotlib
 import transforms as T
+import sys
+import statistics
 
 # load a model pre-trained pre-trained on COCO
 model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
@@ -129,9 +131,10 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
 
 def get_transform(train):
     transforms = []
-    transforms.append(T.ToTensor())
     if train:
-        transforms.append(T.RandomHorizontalFlip(0.5))
+        transforms.append(T.RandomInvert(0.5))
+    transforms.append(T.Grayscale())
+    transforms.append(T.ToTensor())
     return T.Compose(transforms)
 
 def main():
@@ -141,16 +144,16 @@ def main():
     # our dataset has two classes only - background and person
     num_classes = 2
     # use our dataset and defined transformations
-    root = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/Image"
+    root = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/Image_pers_blur"
     trans = transforms.Compose([transforms.ToTensor()])
     dataset = ImageMaskDataset(root, get_transform(train=True))
     dataset_test = ImageMaskDataset(root, get_transform(train=False))
-
+    print(len(dataset), len(dataset_test))
     # split the dataset in train and test set
     indices = torch.randperm(len(dataset)).tolist()
-    dataset = torch.utils.data.Subset(dataset, indices[:-50])
-    dataset_test = torch.utils.data.Subset(dataset_test, indices[-50:])
-
+    dataset = torch.utils.data.Subset(dataset, indices[:-50]) #-50
+    dataset_test = torch.utils.data.Subset(dataset_test, indices[-50:]) #-50
+    print(len(dataset), len(dataset_test))
     # define training and validation data loaders
     data_loader = torch.utils.data.DataLoader(
         dataset, batch_size=2, shuffle=True, num_workers=0,collate_fn=utils.collate_fn)
@@ -172,9 +175,9 @@ def main():
     # and a learning rate scheduler
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
                                                    step_size=1,
-                                                   gamma=0.01)
+                                                   gamma=0.5)
 
-    # let's train it for 10 epochs
+    # let's train it for 5 epochs
     num_epochs = 5
 
     for epoch in range(num_epochs):
@@ -203,11 +206,11 @@ def show_result(model, data_loader, cuda):
         for image, target in zip(images,targets):
             plt.imshow(np.transpose(image.cpu().numpy(),[1,2,0]))
             #image = np.transpose(image, [1, 2, 0])
-            print(image.shape)
+            # print(image.shape)
             loss_dict = model([image])#, [target])
-            print(len(loss_dict[0]['boxes']))
-            print(len(loss_dict[0]['masks']))
-            print(loss_dict[0])
+            # print(len(loss_dict[0]['boxes']))
+            # print(len(loss_dict[0]['masks']))
+            # print(loss_dict[0])
             show_img_with_boxes(np.transpose(image.cpu().numpy(),[1,2,0]), target,loss_dict[0])
             #break
         break
@@ -230,57 +233,136 @@ def show_result(model, data_loader, cuda):
 # show_result(model, data_loader, 1)
 #
 # dirname = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/"
-# model_path = "detection"
+# model_path = "detection_2"
 # model_path = os.path.join(dirname,model_path)
 # torch.save(model.state_dict(), model_path)
 
 def image_transform(img):
     # take Image object return tensor
-    img = np.transpose(np.asarray(img),[2,0,1])
+    img = np.asarray(img)
+    print(img.shape)
+    if len(img.shape) == 3:
+        img = np.transpose(img,[2,0,1])
+    elif len(img.shape) == 2:
+        img = img
+    else :
+        print("only support RGB or L")
+        sys.exit(1)
     return torch.Tensor(img.astype(np.float32)/255)
 
-def test_on_none_generated_data(model, img_path):
+def test_on_none_generated_data(model, img_path,label):
     img = Image.open(img_path)
+    # img = Image.open(img_path).convert('RGBA')
+    # background = Image.new('RGBA', img.size, (255, 255, 255))
+    #
+    # img = Image.alpha_composite(background, img)
     image = torch.Tensor(image_transform(img))
     print(image.shape)
     model.eval()
     loss_dict = model([image])
-    print(loss_dict)
+    #print(loss_dict)
     print(image.shape)
     show_img_with_boxes(np.transpose(image.cpu().numpy(), [1, 2, 0]), target=None, prediction=loss_dict[0])
     print(loss_dict[0]['boxes'].shape)
-    crop_plate_number(image, loss_dict[0])
+    crop_plate_number(image, loss_dict[0],label )
 
-def crop_plate_number(img, pred, target_dir=None):
+import copy
+def sort_array(boxes, top_7_idx):
+    box = boxes[top_7_idx]
+    box = box.detach().numpy()
+    top_7_idx =top_7_idx.numpy()
+    changed = True
+    while changed:
+        changed = False
+        for i in range(box.shape[0]-1):
+            if box[i][0]> box[i+1][0]:
+                tmp = copy.deepcopy(box[i])
+                _t = copy.deepcopy(top_7_idx[i])
+                box[i]=box[i+1]
+                top_7_idx[i] = top_7_idx[i + 1]
+                #print(tmp)
+                box[i + 1] = tmp
+                top_7_idx[i+1] = _t
+                changed = True
+                #print(box)
+    return box, top_7_idx
+# import torch
+# boxes = torch.Tensor([[5,1],[4,2],[3,4],[2,4],[1,0]])
+# top_7_idx = torch.Tensor([0,3,1])
+# sort_array(boxes, top_7_idx.long())
+
+def decide_crop_area(boxes, scores, top=5, dev = 1,th = 20):
+    top_idx = torch.topk(scores, top)[1]
+    _b = boxes[top_idx].detach().numpy()
+    area = []
+    loop = True
+    for i in range(_b.shape[0]):
+        a, b, c, d = _b[i, 0], _b[i, 2], _b[i, 1], _b[i, 3]
+        _a = (d-c) * (b-a)
+        area.append(_a.astype(np.float64))
+        a+=_a
+    avg = sum(area)/len(area)
+    print(area, type(area[0]))
+    while loop:
+        if len(area) == 0:
+            break
+        if statistics.stdev(area) <= th*avg*0.01:
+            return avg
+        else:
+            print(statistics.stdev(area))
+            value1 = min(area)
+            value2 = max(area)
+            remove = value1 if abs(value1-avg)>abs(value2-avg) else value2
+            area.remove(remove)
+            avg = sum(area)/len(area)
+
+
+
+def crop_plate_number(img, pred, label, th = 10, target_dir=None):
+
     mul = 1
     if img.max() <= 1:
         mul = 255
     boxes = pred['boxes']
     scores = pred['scores']
-    top_7_idx = torch.topk(scores, 7)[1]
+    # ref = decide_crop_area(boxes, scores)
+    # print(ref)
+    # top = min( boxes.shape[0], 20)
+    top = 7
+    top_7_idx = torch.topk(scores, top)[1]
+    # print(scores[top_7_idx])
     img = img.numpy()
-    boxes = boxes.detach().numpy().astype(np.int32)
-    for t in range(top_7_idx.shape[0]):
-        i = top_7_idx[t]
-        print(type(boxes))
-        #boxes = boxes.long().numpy().astype(np.uint32)
-        if scores[i] > 0.5:
+    boxes = boxes[top_7_idx]
+    boxes, top_7_idx = sort_array(boxes, top_7_idx.long())
+    # boxes = boxes.detach().numpy().astype(np.int32)
+    # count = 0
+    for i in range(boxes.shape[0]):
+        # i = top_7_idx[t]
+        # print(type(boxes))
+        # if count == 7:
+        #     break
+        boxes = boxes.astype(np.uint32)
+        if scores[top_7_idx[i]] > 0.5:
             a,b,c,d = boxes[i, 0],boxes[i,2],boxes[i,1],boxes[i,3]
-            print(img.shape)
+            #print(img.shape)
+            # _a = (d - c) * (b - a)
+            # if abs(_a-ref)<=th*ref:
+            #     count +=1
             crop = img[:, c:d,a:b]
-            print(crop.shape)
+            #print(crop.shape)
             _img = np.transpose((crop*mul).astype(np.uint8), [1,2,0])
-            print(_img)
+            #print(_img)
             im = Image.fromarray(_img)
             im.save('Crop/{}.png'.format(i))
 
 
 if __name__ == "__main__":
     matplotlib.use('TkAgg')
+    train = False
     dirname = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/"
-    model_path = "detection"
+    model_path = "detection_pers_blur"
     model_path = os.path.join(dirname,model_path)
-    root = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/Image"
+    root = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/Image_pers_blur"
     dataset = ImageMaskDataset(root, get_transform(train=True))
     dataset_test = ImageMaskDataset(root, get_transform(train=False))
 
@@ -288,15 +370,24 @@ if __name__ == "__main__":
     indices = torch.randperm(len(dataset)).tolist()
     dataset = torch.utils.data.Subset(dataset, indices[:-50])
     dataset_test = torch.utils.data.Subset(dataset_test, indices[-50:])
+    #print(len(dataset), len(dataset_test))
     data_loader = torch.utils.data.DataLoader(
         dataset, batch_size=2, shuffle=True, num_workers=0,collate_fn=utils.collate_fn)
 
     data_loader_test = torch.utils.data.DataLoader(
          dataset_test, batch_size=3, shuffle=False, num_workers=0,
         collate_fn=utils.collate_fn)
-    model1 = get_model_instance_segmentation(2)
-    state = torch.load(model_path)
-    model1.load_state_dict(state)
-    # show_result(model1, data_loader_test, 1)
-    new_data = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/plate/FWU8Yl.jpg"
-    test_on_none_generated_data(model1, new_data)
+    if train is False:
+        model1 = get_model_instance_segmentation(2)
+        state = torch.load(model_path)
+        model1.load_state_dict(state)
+        # show_result(model1, data_loader_test, 1)
+        new_data = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/plate/LBYRNTH.jpg"
+        new_data = "C:/Users/bowen/Documents/APS360/project/2017-IWT4S-CarsReId_LP-dataset/s01_l01/4_17.png"
+        test_on_none_generated_data(model1, new_data, label = "BE082AB")
+    else:
+        model = main()
+        dirname = "C:/Users/bowen/Documents/APS360/project/APS360-project/APS360-Project/Model/"
+        #model_path = "detection_affine"
+        model_path = os.path.join(dirname,model_path)
+        torch.save(model.state_dict(), model_path)
